@@ -1,6 +1,9 @@
 import WeatherCard from "@/src/components/WeatherCard/WeatherCard";
-import React from "react";
+import React, { useState } from "react";
+
+import { getCurrentWeatherByCity } from "@/src/api/openMeteo";
 import {
+  ActivityIndicator,
   Keyboard,
   Pressable,
   StyleSheet,
@@ -11,6 +14,44 @@ import {
 } from "react-native";
 
 export default function WeatherScreen() {
+  const [query, setQuery] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [weather, setWeather] = useState<null | {
+    city: string;
+    condition: string;
+    temp: string;
+    humidity: string;
+    wind: string;
+    feelsLike: string;
+  }>(null);
+
+  const onSearch = async () => {
+    const city = query.trim();
+    if (!city) return;
+
+    Keyboard.dismiss();
+    setError("");
+    setLoading(true);
+
+    try {
+      const w = await getCurrentWeatherByCity(city);
+
+      setWeather({
+        city: w.city,
+        condition: w.condition,
+        temp: `${Math.round(w.temp)}°`,
+        humidity: `${Math.round(w.humidity)}%`,
+        wind: `${Math.round(w.wind)} m/s`,
+        feelsLike: `${Math.round(w.feelsLike)}°`,
+      });
+    } catch (e: any) {
+      setError(e?.message ?? "Something went wrong");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
       <View style={styles.container}>
@@ -27,22 +68,34 @@ export default function WeatherScreen() {
               autoCapitalize="words"
               autoCorrect={false}
               returnKeyType="search"
-              onSubmitEditing={Keyboard.dismiss}
+              onSubmitEditing={onSearch}
+              value={query}
+              onChangeText={setQuery}
             />
           </View>
 
-          <Pressable style={styles.searchBtn}>
+          <Pressable
+            onPress={onSearch}
+            style={({ pressed }) => [
+              styles.searchBtn,
+              pressed && styles.searchBtnPressed,
+              (loading || !query.trim()) && styles.searchBtnDisabled,
+            ]}
+            disabled={loading || !query.trim()}
+          >
             <Text style={styles.searchBtnText}>Search</Text>
           </Pressable>
         </View>
-        <WeatherCard
-          city="Tbilisi"
-          condition="Cloudy"
-          temp="12"
-          humidity="62%"
-          wind="4 m/s"
-          feelsLike="10"
-        />
+
+        {loading ? (
+          <ActivityIndicator style={{ marginTop: 16 }} />
+        ) : error ? (
+          <Text style={{ marginTop: 16, color: "#FF7A7A", fontWeight: "600" }}>
+            {error}
+          </Text>
+        ) : weather ? (
+          <WeatherCard {...weather} />
+        ) : null}
       </View>
     </TouchableWithoutFeedback>
   );
@@ -96,5 +149,11 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 15,
     fontWeight: "700",
+  },
+  searchBtnPressed: {
+    backgroundColor: "#1f4fd8", 
+  },
+  searchBtnDisabled: {
+    opacity: 0.6,
   },
 });
