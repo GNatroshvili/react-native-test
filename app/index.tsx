@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Stack } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Keyboard,
@@ -44,16 +45,41 @@ const mapWeatherCode = (
   return { condition: "Unknown", icon: "help-circle-outline" };
 };
 
+const RECENT_SEARCHES_KEY = "@weather_app_recent_searches";
+
 export default function Index() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [recentSearches, setRecentSearches] = useState<string[]>([
-    "New York",
-    "London",
-    "Tokyo",
-  ]);
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Load recent searches on mount
+  useEffect(() => {
+    loadRecentSearches();
+  }, []);
+
+  const loadRecentSearches = async () => {
+    try {
+      const saved = await AsyncStorage.getItem(RECENT_SEARCHES_KEY);
+      if (saved) {
+        setRecentSearches(JSON.parse(saved));
+      } else {
+        // Fallback to defaults if nothing is saved
+        setRecentSearches(["New York", "London", "Tokyo"]);
+      }
+    } catch (e) {
+      console.error("Failed to load recent searches", e);
+    }
+  };
+
+  const saveRecentSearches = async (searches: string[]) => {
+    try {
+      await AsyncStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(searches));
+    } catch (e) {
+      console.error("Failed to save recent searches", e);
+    }
+  };
 
   const handleSearch = async (city: string) => {
     if (!city.trim()) return;
@@ -100,7 +126,9 @@ export default function Index() {
       if (
         !recentSearches.some((s) => s.toLowerCase() === cityName.toLowerCase())
       ) {
-        setRecentSearches((prev) => [cityName, ...prev].slice(0, 5));
+        const updated = [cityName, ...recentSearches].slice(0, 5);
+        setRecentSearches(updated);
+        saveRecentSearches(updated);
       }
       setSearchQuery("");
     } catch (err: any) {
