@@ -21,8 +21,14 @@ import { useWeather } from "../hooks/useWeather";
 export default function Index() {
   const [searchQuery, setSearchQuery] = useState("");
   const [refreshing, setRefreshing] = useState(false);
-  const { recentSearches, weather, loading, error, handleSearch } =
-    useWeather();
+  const {
+    recentSearches,
+    weather,
+    loading,
+    error,
+    handleSearch,
+    clearWeather,
+  } = useWeather();
 
   const onSearch = (city: string) => {
     handleSearch(city);
@@ -30,11 +36,12 @@ export default function Index() {
   };
 
   const onRefresh = async () => {
-    if (weather) {
-      setRefreshing(true);
-      await handleSearch(weather.city);
+    setRefreshing(true);
+    // Mimic a brief loading period and reset the weather data
+    setTimeout(() => {
+      clearWeather();
       setRefreshing(false);
-    }
+    }, 800);
   };
 
   const currentBgColors: [string, string, ...string[]] = weather?.bgColors || [

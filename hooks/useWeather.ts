@@ -95,11 +95,17 @@ export function useWeather() {
     }
   };
 
+  const clearWeather = () => {
+    setWeather(null);
+    setError(null);
+  };
+
   return {
     recentSearches,
     weather,
     loading,
     error,
     handleSearch,
+    clearWeather,
   };
 }
