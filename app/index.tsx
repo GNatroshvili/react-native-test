@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Image } from "expo-image";
 import { Stack } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -22,27 +23,67 @@ type WeatherData = {
   temp: number;
   condition: string;
   icon: keyof typeof Ionicons.glyphMap;
+  iconUrl: string;
   humidity: string;
   wind: string;
   feelsLike: number;
 };
 
-// Map WMO codes to UI descriptions and icons
+// Map WMO codes to UI descriptions, icons, and image URLs
+// We use OpenWeatherMap icon set as a widely compatible public source for images
 const mapWeatherCode = (
   code: number,
-): { condition: string; icon: keyof typeof Ionicons.glyphMap } => {
-  if (code === 0) return { condition: "Clear Sky", icon: "sunny-outline" };
+  isDay: boolean = true,
+): {
+  condition: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  iconUrl: string;
+} => {
+  const suffix = isDay ? "d" : "n";
+
+  if (code === 0)
+    return {
+      condition: "Clear Sky",
+      icon: "sunny-outline",
+      iconUrl: `https://openweathermap.org/img/wn/01${suffix}@4x.png`,
+    };
+
   if (code >= 1 && code <= 3)
-    return { condition: "Partly Cloudy", icon: "partly-sunny-outline" };
+    return {
+      condition: "Partly Cloudy",
+      icon: "partly-sunny-outline",
+      iconUrl: `https://openweathermap.org/img/wn/02${suffix}@4x.png`,
+    };
+
   if (code === 45 || code === 48)
-    return { condition: "Fog", icon: "cloudy-outline" };
+    return {
+      condition: "Fog",
+      icon: "cloudy-outline",
+      iconUrl: `https://openweathermap.org/img/wn/50${suffix}@4x.png`,
+    };
+
   if ((code >= 51 && code <= 65) || (code >= 80 && code <= 82))
-    return { condition: "Rainy", icon: "rainy-outline" };
+    return {
+      condition: "Rainy",
+      icon: "rainy-outline",
+      iconUrl: `https://openweathermap.org/img/wn/10${suffix}@4x.png`,
+    };
+
   if ((code >= 71 && code <= 77) || (code >= 85 && code <= 86))
-    return { condition: "Snowy", icon: "snow-outline" };
+    return {
+      condition: "Snowy",
+      icon: "snow-outline",
+      iconUrl: `https://openweathermap.org/img/wn/13${suffix}@4x.png`,
+    };
+
   if (code >= 95)
-    return { condition: "Thunderstorm", icon: "thunderstorm-outline" };
-  return { condition: "Unknown", icon: "help-circle-outline" };
+    return {
+      condition: "Thunderstorm",
+      icon: "thunderstorm-outline",
+      iconUrl: `https://openweathermap.org/img/wn/11${suffix}@4x.png`,
+    };
+
+  return { condition: "Unknown", icon: "help-circle-outline", iconUrl: "" };
 };
 
 const RECENT_SEARCHES_KEY = "@weather_app_recent_searches";
@@ -103,18 +144,22 @@ export default function Index() {
 
       // 2. Weather Forecast API
       const weatherRes = await fetch(
-        `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m&timezone=auto`,
+        `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,is_day&timezone=auto`,
       );
       const weatherData = await weatherRes.json();
 
       const current = weatherData.current;
-      const { condition, icon } = mapWeatherCode(current.weather_code);
+      const { condition, icon, iconUrl } = mapWeatherCode(
+        current.weather_code,
+        current.is_day === 1,
+      );
 
       const newWeather: WeatherData = {
         city: cityName,
         temp: Math.round(current.temperature_2m),
         condition: condition,
         icon: icon,
+        iconUrl: iconUrl,
         humidity: `${current.relative_humidity_2m}%`,
         wind: `${Math.round(current.wind_speed_10m)} km/h`,
         feelsLike: Math.round(current.apparent_temperature),
@@ -236,7 +281,17 @@ export default function Index() {
                     })}
                   </Text>
                 </View>
-                <Ionicons name={weather.icon} size={64} color="#007AFF" />
+                {weather.iconUrl ? (
+                  <Image
+                    source={{ uri: weather.iconUrl }}
+                    style={styles.weatherIcon}
+                    contentFit="contain"
+                    transition={500}
+                    priority="high"
+                  />
+                ) : (
+                  <Ionicons name={weather.icon} size={64} color="#007AFF" />
+                )}
               </View>
 
               <View style={styles.tempContainer}>
@@ -395,6 +450,11 @@ const styles = StyleSheet.create({
     color: "#666",
     fontSize: 14,
     marginTop: 4,
+  },
+  weatherIcon: {
+    width: 100,
+    height: 100,
+    marginRight: -10,
   },
   statusContainer: {
     alignItems: "center",
