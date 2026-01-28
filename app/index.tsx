@@ -1,4 +1,6 @@
-import { Text, View } from "react-native";
+import { View } from "react-native";
+import { StatusBar } from "expo-status-bar";
+import WeatherScreen from "@/src/screens/WeatherScreen/WeatherScreen";
 
 export default function Index() {
   return (
@@ -9,7 +11,8 @@ export default function Index() {
         alignItems: "center",
       }}
     >
-      <Text>Edit app/index.tsx to edit this screen.11</Text>
+      <StatusBar style="light" />
+      <WeatherScreen />
     </View>
   );
 }
