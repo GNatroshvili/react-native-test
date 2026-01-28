@@ -61,7 +61,7 @@ export function useWeather() {
       const weatherData = await weatherRes.json();
 
       const current = weatherData.current;
-      const { condition, icon, iconUrl } = mapWeatherCode(
+      const { condition, icon, iconUrl, bgColors } = mapWeatherCode(
         current.weather_code,
         current.is_day === 1,
       );
@@ -75,6 +75,7 @@ export function useWeather() {
         humidity: `${current.relative_humidity_2m}%`,
         wind: `${Math.round(current.wind_speed_10m)} km/h`,
         feelsLike: Math.round(current.apparent_temperature),
+        bgColors: bgColors,
       };
 
       setWeather(newWeather);

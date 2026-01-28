@@ -1,10 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { Stack } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  RefreshControl,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -18,6 +20,7 @@ import { useWeather } from "../hooks/useWeather";
 
 export default function Index() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
   const { recentSearches, weather, loading, error, handleSearch } =
     useWeather();
 
@@ -26,111 +29,149 @@ export default function Index() {
     setSearchQuery("");
   };
 
+  const onRefresh = async () => {
+    if (weather) {
+      setRefreshing(true);
+      await handleSearch(weather.city);
+      setRefreshing(false);
+    }
+  };
+
+  const currentBgColors: [string, string, ...string[]] = weather?.bgColors || [
+    "#F8F9FA",
+    "#E9ECEF",
+  ];
+  const isDarkBg =
+    currentBgColors[0].startsWith("#0") ||
+    currentBgColors[0].startsWith("#2") ||
+    currentBgColors[0].startsWith("#1");
+
   return (
-    <SafeAreaView style={styles.container}>
-      <Stack.Screen options={{ headerShown: false }} />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.flex}
-      >
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
+    <LinearGradient colors={currentBgColors} style={styles.flex}>
+      <SafeAreaView style={styles.container}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.flex}
         >
-          <Text style={styles.title}>Weather</Text>
-
-          {/* Search Input Area */}
-          <View style={styles.searchContainer}>
-            <View style={styles.inputWrapper}>
-              <Ionicons
-                name="search-outline"
-                size={20}
-                color="#666"
-                style={styles.searchIcon}
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={isDarkBg ? "#FFF" : "#007AFF"}
               />
-              <TextInput
-                style={styles.input}
-                placeholder="Search city..."
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                onSubmitEditing={() => onSearch(searchQuery)}
-                placeholderTextColor="#999"
-                editable={!loading}
-              />
-              {searchQuery.length > 0 && !loading && (
-                <TouchableOpacity onPress={() => setSearchQuery("")}>
-                  <Ionicons name="close-circle" size={20} color="#ccc" />
-                </TouchableOpacity>
-              )}
+            }
+          >
+            <Text style={[styles.title, isDarkBg && styles.lightText]}>
+              Weather
+            </Text>
+
+            {/* Search Input Area */}
+            <View style={styles.searchContainer}>
+              <View style={styles.inputWrapper}>
+                <Ionicons
+                  name="search-outline"
+                  size={20}
+                  color="#666"
+                  style={styles.searchIcon}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Search city..."
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  onSubmitEditing={() => onSearch(searchQuery)}
+                  placeholderTextColor="#999"
+                  editable={!loading}
+                />
+                {searchQuery.length > 0 && !loading && (
+                  <TouchableOpacity onPress={() => setSearchQuery("")}>
+                    <Ionicons name="close-circle" size={20} color="#ccc" />
+                  </TouchableOpacity>
+                )}
+              </View>
+              <TouchableOpacity
+                style={[
+                  styles.searchButton,
+                  loading && styles.searchButtonDisabled,
+                ]}
+                onPress={() => onSearch(searchQuery)}
+                disabled={loading}
+              >
+                <Text style={styles.searchButtonText}>
+                  {loading ? "..." : "Search"}
+                </Text>
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity
-              style={[
-                styles.searchButton,
-                loading && styles.searchButtonDisabled,
-              ]}
-              onPress={() => onSearch(searchQuery)}
-              disabled={loading}
-            >
-              <Text style={styles.searchButtonText}>
-                {loading ? "..." : "Search"}
+
+            {/* Recent Searches */}
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, isDarkBg && styles.lightText]}>
+                Recent Searches
               </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Recent Searches */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Recent Searches</Text>
-            <View style={styles.recentList}>
-              {recentSearches.map((city, index) => (
-                <TouchableOpacity
-                  key={index}
-                  style={styles.recentItem}
-                  onPress={() => handleSearch(city)}
-                  disabled={loading}
-                >
-                  <Ionicons name="time-outline" size={14} color="#007AFF" />
-                  <Text style={styles.recentText}>{city}</Text>
-                </TouchableOpacity>
-              ))}
+              <View style={styles.recentList}>
+                {recentSearches.map((city, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    style={styles.recentItem}
+                    onPress={() => handleSearch(city)}
+                    disabled={loading}
+                  >
+                    <Ionicons name="time-outline" size={14} color="#007AFF" />
+                    <Text style={styles.recentText}>{city}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
-          </View>
 
-          {/* Status Feedback */}
-          {loading && (
-            <View style={styles.statusContainer}>
-              <ActivityIndicator size="large" color="#007AFF" />
-              <Text style={styles.statusText}>Fetching weather data...</Text>
-            </View>
-          )}
+            {/* Status Feedback */}
+            {loading && !refreshing && (
+              <View style={styles.statusContainer}>
+                <ActivityIndicator
+                  size="large"
+                  color={isDarkBg ? "#FFF" : "#007AFF"}
+                />
+                <Text style={[styles.statusText, isDarkBg && styles.lightText]}>
+                  Fetching weather data...
+                </Text>
+              </View>
+            )}
 
-          {error && !loading && (
-            <View style={styles.errorContainer}>
-              <Ionicons name="alert-circle-outline" size={48} color="#FF3B30" />
-              <Text style={styles.errorText}>{error}</Text>
-            </View>
-          )}
+            {error && !loading && (
+              <View style={styles.errorContainer}>
+                <Ionicons
+                  name="alert-circle-outline"
+                  size={48}
+                  color="#FF3B30"
+                />
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            )}
 
-          {/* Weather Display */}
-          {weather && !loading && <WeatherCard weather={weather} />}
+            {/* Weather Display */}
+            {weather && !loading && <WeatherCard weather={weather} />}
 
-          {!weather && !loading && !error && (
-            <View style={styles.emptyContainer}>
-              <Ionicons name="cloud-outline" size={80} color="#E0E0E0" />
-              <Text style={styles.emptyText}>
-                Search for a city to see the weather
-              </Text>
-            </View>
-          )}
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+            {!weather && !loading && !error && (
+              <View style={styles.emptyContainer}>
+                <Ionicons name="cloud-outline" size={80} color="#E0E0E0" />
+                <Text style={styles.emptyText}>
+                  Search for a city to see the weather
+                </Text>
+              </View>
+            )}
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F8F9FA",
   },
   flex: {
     flex: 1,
@@ -143,6 +184,9 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#1A1A1A",
     marginBottom: 20,
+  },
+  lightText: {
+    color: "#FFF",
   },
   searchContainer: {
     flexDirection: "row",
@@ -202,7 +246,7 @@ const styles = StyleSheet.create({
   recentItem: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#E9ECEF",
+    backgroundColor: "rgba(233, 236, 239, 0.9)",
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 20,

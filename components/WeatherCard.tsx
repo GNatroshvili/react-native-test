@@ -64,7 +64,7 @@ export const WeatherCard: React.FC<WeatherCardProps> = ({ weather }) => {
 
 const styles = StyleSheet.create({
   weatherCard: {
-    backgroundColor: "#FFF",
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
     borderRadius: 25,
     padding: 25,
     shadowColor: "#000",
