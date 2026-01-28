@@ -1,11 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Image } from "expo-image";
 import { Stack } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   ActivityIndicator,
-  Keyboard,
   KeyboardAvoidingView,
   Platform,
   SafeAreaView,
@@ -16,172 +13,17 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-
-// Weather data type for Open-Meteo
-type WeatherData = {
-  city: string;
-  temp: number;
-  condition: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  iconUrl: string;
-  humidity: string;
-  wind: string;
-  feelsLike: number;
-};
-
-// Map WMO codes to UI descriptions, icons, and image URLs
-// We use OpenWeatherMap icon set as a widely compatible public source for images
-const mapWeatherCode = (
-  code: number,
-  isDay: boolean = true,
-): {
-  condition: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  iconUrl: string;
-} => {
-  const suffix = isDay ? "d" : "n";
-
-  if (code === 0)
-    return {
-      condition: "Clear Sky",
-      icon: "sunny-outline",
-      iconUrl: `https://openweathermap.org/img/wn/01${suffix}@4x.png`,
-    };
-
-  if (code >= 1 && code <= 3)
-    return {
-      condition: "Partly Cloudy",
-      icon: "partly-sunny-outline",
-      iconUrl: `https://openweathermap.org/img/wn/02${suffix}@4x.png`,
-    };
-
-  if (code === 45 || code === 48)
-    return {
-      condition: "Fog",
-      icon: "cloudy-outline",
-      iconUrl: `https://openweathermap.org/img/wn/50${suffix}@4x.png`,
-    };
-
-  if ((code >= 51 && code <= 65) || (code >= 80 && code <= 82))
-    return {
-      condition: "Rainy",
-      icon: "rainy-outline",
-      iconUrl: `https://openweathermap.org/img/wn/10${suffix}@4x.png`,
-    };
-
-  if ((code >= 71 && code <= 77) || (code >= 85 && code <= 86))
-    return {
-      condition: "Snowy",
-      icon: "snow-outline",
-      iconUrl: `https://openweathermap.org/img/wn/13${suffix}@4x.png`,
-    };
-
-  if (code >= 95)
-    return {
-      condition: "Thunderstorm",
-      icon: "thunderstorm-outline",
-      iconUrl: `https://openweathermap.org/img/wn/11${suffix}@4x.png`,
-    };
-
-  return { condition: "Unknown", icon: "help-circle-outline", iconUrl: "" };
-};
-
-const RECENT_SEARCHES_KEY = "@weather_app_recent_searches";
+import { WeatherCard } from "../components/WeatherCard";
+import { useWeather } from "../hooks/useWeather";
 
 export default function Index() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [recentSearches, setRecentSearches] = useState<string[]>([]);
-  const [weather, setWeather] = useState<WeatherData | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { recentSearches, weather, loading, error, handleSearch } =
+    useWeather();
 
-  // Load recent searches on mount
-  useEffect(() => {
-    loadRecentSearches();
-  }, []);
-
-  const loadRecentSearches = async () => {
-    try {
-      const saved = await AsyncStorage.getItem(RECENT_SEARCHES_KEY);
-      if (saved) {
-        setRecentSearches(JSON.parse(saved));
-      } else {
-        // Fallback to defaults if nothing is saved
-        setRecentSearches(["New York", "London", "Tokyo"]);
-      }
-    } catch (e) {
-      console.error("Failed to load recent searches", e);
-    }
-  };
-
-  const saveRecentSearches = async (searches: string[]) => {
-    try {
-      await AsyncStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(searches));
-    } catch (e) {
-      console.error("Failed to save recent searches", e);
-    }
-  };
-
-  const handleSearch = async (city: string) => {
-    if (!city.trim()) return;
-
-    setLoading(true);
-    setError(null);
-    Keyboard.dismiss();
-
-    try {
-      // 1. Geocoding API to get coordinates
-      const geoRes = await fetch(
-        `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=en&format=json`,
-      );
-      const geoData = await geoRes.json();
-
-      if (!geoData.results || geoData.results.length === 0) {
-        throw new Error("City not found. Please try another name.");
-      }
-
-      const { latitude, longitude, name: cityName } = geoData.results[0];
-
-      // 2. Weather Forecast API
-      const weatherRes = await fetch(
-        `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,is_day&timezone=auto`,
-      );
-      const weatherData = await weatherRes.json();
-
-      const current = weatherData.current;
-      const { condition, icon, iconUrl } = mapWeatherCode(
-        current.weather_code,
-        current.is_day === 1,
-      );
-
-      const newWeather: WeatherData = {
-        city: cityName,
-        temp: Math.round(current.temperature_2m),
-        condition: condition,
-        icon: icon,
-        iconUrl: iconUrl,
-        humidity: `${current.relative_humidity_2m}%`,
-        wind: `${Math.round(current.wind_speed_10m)} km/h`,
-        feelsLike: Math.round(current.apparent_temperature),
-      };
-
-      setWeather(newWeather);
-
-      // Add to recent searches (case insensitive check)
-      if (
-        !recentSearches.some((s) => s.toLowerCase() === cityName.toLowerCase())
-      ) {
-        const updated = [cityName, ...recentSearches].slice(0, 5);
-        setRecentSearches(updated);
-        saveRecentSearches(updated);
-      }
-      setSearchQuery("");
-    } catch (err: any) {
-      setError(err.message || "Something went wrong. Please try again.");
-      setWeather(null);
-    } finally {
-      setLoading(false);
-    }
+  const onSearch = (city: string) => {
+    handleSearch(city);
+    setSearchQuery("");
   };
 
   return (
@@ -211,7 +53,7 @@ export default function Index() {
                 placeholder="Search city..."
                 value={searchQuery}
                 onChangeText={setSearchQuery}
-                onSubmitEditing={() => handleSearch(searchQuery)}
+                onSubmitEditing={() => onSearch(searchQuery)}
                 placeholderTextColor="#999"
                 editable={!loading}
               />
@@ -226,7 +68,7 @@ export default function Index() {
                 styles.searchButton,
                 loading && styles.searchButtonDisabled,
               ]}
-              onPress={() => handleSearch(searchQuery)}
+              onPress={() => onSearch(searchQuery)}
               disabled={loading}
             >
               <Text style={styles.searchButtonText}>
@@ -269,57 +111,7 @@ export default function Index() {
           )}
 
           {/* Weather Display */}
-          {weather && !loading && (
-            <View style={styles.weatherCard}>
-              <View style={styles.cardHeader}>
-                <View style={styles.cityInfo}>
-                  <Text style={styles.cityName}>{weather.city}</Text>
-                  <Text style={styles.dateText}>
-                    {new Date().toLocaleDateString("en-GB", {
-                      day: "numeric",
-                      month: "short",
-                    })}
-                  </Text>
-                </View>
-                {weather.iconUrl ? (
-                  <Image
-                    source={{ uri: weather.iconUrl }}
-                    style={styles.weatherIcon}
-                    contentFit="contain"
-                    transition={500}
-                    priority="high"
-                  />
-                ) : (
-                  <Ionicons name={weather.icon} size={64} color="#007AFF" />
-                )}
-              </View>
-
-              <View style={styles.tempContainer}>
-                <Text style={styles.tempText}>{weather.temp}°</Text>
-                <Text style={styles.conditionText}>{weather.condition}</Text>
-              </View>
-
-              <View style={styles.divider} />
-
-              <View style={styles.detailsRow}>
-                <View style={styles.detailItem}>
-                  <Ionicons name="water-outline" size={24} color="#555" />
-                  <Text style={styles.detailLabel}>Humidity</Text>
-                  <Text style={styles.detailValue}>{weather.humidity}</Text>
-                </View>
-                <View style={styles.detailItem}>
-                  <Ionicons name="leaf-outline" size={24} color="#555" />
-                  <Text style={styles.detailLabel}>Wind</Text>
-                  <Text style={styles.detailValue}>{weather.wind}</Text>
-                </View>
-                <View style={styles.detailItem}>
-                  <Ionicons name="thermometer-outline" size={24} color="#555" />
-                  <Text style={styles.detailLabel}>Feels Like</Text>
-                  <Text style={styles.detailValue}>{weather.feelsLike}°</Text>
-                </View>
-              </View>
-            </View>
-          )}
+          {weather && !loading && <WeatherCard weather={weather} />}
 
           {!weather && !loading && !error && (
             <View style={styles.emptyContainer}>
@@ -421,41 +213,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "500",
   },
-  weatherCard: {
-    backgroundColor: "#FFF",
-    borderRadius: 25,
-    padding: 25,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.1,
-    shadowRadius: 20,
-    elevation: 5,
-  },
-  cardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  cityInfo: {
-    flex: 1,
-    marginRight: 10,
-  },
-  cityName: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#1A1A1A",
-  },
-  dateText: {
-    color: "#666",
-    fontSize: 14,
-    marginTop: 4,
-  },
-  weatherIcon: {
-    width: 100,
-    height: 100,
-    marginRight: -10,
-  },
   statusContainer: {
     alignItems: "center",
     marginTop: 40,
@@ -476,45 +233,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 16,
     fontWeight: "500",
-  },
-  tempContainer: {
-    alignItems: "center",
-    marginVertical: 10,
-  },
-  tempText: {
-    fontSize: 80,
-    fontWeight: "200",
-    color: "#1A1A1A",
-  },
-  conditionText: {
-    fontSize: 20,
-    color: "#666",
-    fontWeight: "500",
-  },
-  divider: {
-    height: 1,
-    backgroundColor: "#F1F3F5",
-    marginVertical: 25,
-  },
-  detailsRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  detailItem: {
-    alignItems: "center",
-  },
-  detailLabel: {
-    fontSize: 12,
-    color: "#999",
-    marginTop: 8,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  detailValue: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#1A1A1A",
-    marginTop: 2,
   },
   emptyContainer: {
     alignItems: "center",
