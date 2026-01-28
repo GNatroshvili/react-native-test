@@ -2,8 +2,10 @@ import WeatherCard from "@/src/components/WeatherCard/WeatherCard";
 import React, { useState } from "react";
 
 import { getCurrentWeatherByCity } from "@/src/api/openMeteo";
+import { getWeatherBg } from "@/src/utils/WeatherBackground";
 import {
   ActivityIndicator,
+  ImageBackground,
   Keyboard,
   Pressable,
   StyleSheet,
@@ -52,51 +54,70 @@ export default function WeatherScreen() {
     }
   };
 
+  const Content = (
+    <View style={styles.content}>
+      <View style={styles.header}>
+        <Text style={styles.headertext}>Weather</Text>
+      </View>
+
+      <View style={styles.searchRow}>
+        <View style={styles.inputWrap}>
+          <TextInput
+            placeholder="Search city"
+            placeholderTextColor="#9AA3B2"
+            style={styles.input}
+            autoCapitalize="words"
+            autoCorrect={false}
+            returnKeyType="search"
+            onSubmitEditing={onSearch}
+            value={query}
+            onChangeText={setQuery}
+          />
+        </View>
+
+        <Pressable
+          onPress={onSearch}
+          style={({ pressed }) => [
+            styles.searchBtn,
+            pressed && styles.searchBtnPressed,
+            (loading || !query.trim()) && styles.searchBtnDisabled,
+          ]}
+          disabled={loading || !query.trim()}
+        >
+          <Text style={styles.searchBtnText}>Search</Text>
+        </Pressable>
+      </View>
+
+      {loading ? (
+        <ActivityIndicator style={{ marginTop: 16 }} />
+      ) : error ? (
+        <Text style={{ marginTop: 16, color: "#FF7A7A", fontWeight: "600" }}>
+          {error}
+        </Text>
+      ) : weather ? (
+        <WeatherCard {...weather} />
+      ) : null}
+    </View>
+  );
+
+  const bgImage = weather ? getWeatherBg(weather.condition) : null;
+
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.headertext}>Weather</Text>
+      {bgImage ? (
+        <ImageBackground
+          source={bgImage}
+          resizeMode="cover"
+          style={styles.container}
+        >
+          <View style={styles.overlay} />
+          {Content}
+        </ImageBackground>
+      ) : (
+        <View style={[styles.container, { backgroundColor: "#141B2E" }]}>
+          {Content}
         </View>
-
-        <View style={styles.searchRow}>
-          <View style={styles.inputWrap}>
-            <TextInput
-              placeholder="Search city"
-              placeholderTextColor="#9AA3B2"
-              style={styles.input}
-              autoCapitalize="words"
-              autoCorrect={false}
-              returnKeyType="search"
-              onSubmitEditing={onSearch}
-              value={query}
-              onChangeText={setQuery}
-            />
-          </View>
-
-          <Pressable
-            onPress={onSearch}
-            style={({ pressed }) => [
-              styles.searchBtn,
-              pressed && styles.searchBtnPressed,
-              (loading || !query.trim()) && styles.searchBtnDisabled,
-            ]}
-            disabled={loading || !query.trim()}
-          >
-            <Text style={styles.searchBtnText}>Search</Text>
-          </Pressable>
-        </View>
-
-        {loading ? (
-          <ActivityIndicator style={{ marginTop: 16 }} />
-        ) : error ? (
-          <Text style={{ marginTop: 16, color: "#FF7A7A", fontWeight: "600" }}>
-            {error}
-          </Text>
-        ) : weather ? (
-          <WeatherCard {...weather} />
-        ) : null}
-      </View>
+      )}
     </TouchableWithoutFeedback>
   );
 }
@@ -104,7 +125,13 @@ export default function WeatherScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0B0F1A",
+  },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(11, 15, 26, 0.55)",
+  },
+  content: {
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 25,
@@ -151,7 +178,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   searchBtnPressed: {
-    backgroundColor: "#1f4fd8", 
+    backgroundColor: "#1f4fd8",
   },
   searchBtnDisabled: {
     opacity: 0.6,
