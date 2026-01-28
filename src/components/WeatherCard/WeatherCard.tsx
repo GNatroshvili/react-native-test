@@ -11,6 +11,21 @@ type Props = {
   feelsLike: string;
 };
 
+function getCondition(condition: string): keyof typeof Ionicons.glyphMap {
+  const c = condition.trim().toLowerCase();
+
+  if (c.includes("thunder")) return "thunderstorm-outline";
+  if (c.includes("snow")) return "snow-outline";
+  if (c.includes("rain") || c.includes("drizzle")) return "rainy-outline";
+  if (c.includes("storm")) return "thunderstorm-outline";
+  if (c.includes("fog") || c.includes("mist") || c.includes("haze"))
+    return "cloud-outline";
+  if (c.includes("cloud")) return "cloud-outline";
+  if (c.includes("clear") || c.includes("sun")) return "sunny-outline";
+
+  return "partly-sunny-outline";
+}
+
 export default function WeatherCard({
   city,
   condition,
@@ -28,7 +43,7 @@ export default function WeatherCard({
         </View>
 
         <View style={styles.tempBlock}>
-          <Ionicons name="cloud-outline" size={28} color="#B8C2D6" />
+          <Ionicons name={getCondition(condition)} size={28} color="#B8C2D6" />
           <Text style={styles.temp}>{temp}</Text>
         </View>
       </View>
@@ -122,7 +137,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    justifyContent: "space-between"
+    justifyContent: "space-between",
   },
   statLabel: {
     color: "#9AA3B2",
