@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { Stack } from "expo-router";
 import React, { useState } from "react";
 import {
   KeyboardAvoidingView,
@@ -72,6 +73,7 @@ export default function Index() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <Stack.Screen options={{ headerShown: false }} />
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.flex}
