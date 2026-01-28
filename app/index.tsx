@@ -2,6 +2,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { Stack } from "expo-router";
 import React, { useState } from "react";
 import {
+  ActivityIndicator,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   SafeAreaView,
@@ -13,7 +15,7 @@ import {
   View,
 } from "react-native";
 
-// Mock weather data type
+// Weather data type for Open-Meteo
 type WeatherData = {
   city: string;
   temp: number;
@@ -21,6 +23,25 @@ type WeatherData = {
   icon: keyof typeof Ionicons.glyphMap;
   humidity: string;
   wind: string;
+  feelsLike: number;
+};
+
+// Map WMO codes to UI descriptions and icons
+const mapWeatherCode = (
+  code: number,
+): { condition: string; icon: keyof typeof Ionicons.glyphMap } => {
+  if (code === 0) return { condition: "Clear Sky", icon: "sunny-outline" };
+  if (code >= 1 && code <= 3)
+    return { condition: "Partly Cloudy", icon: "partly-sunny-outline" };
+  if (code === 45 || code === 48)
+    return { condition: "Fog", icon: "cloudy-outline" };
+  if ((code >= 51 && code <= 65) || (code >= 80 && code <= 82))
+    return { condition: "Rainy", icon: "rainy-outline" };
+  if ((code >= 71 && code <= 77) || (code >= 85 && code <= 86))
+    return { condition: "Snowy", icon: "snow-outline" };
+  if (code >= 95)
+    return { condition: "Thunderstorm", icon: "thunderstorm-outline" };
+  return { condition: "Unknown", icon: "help-circle-outline" };
 };
 
 export default function Index() {
@@ -31,44 +52,63 @@ export default function Index() {
     "Tokyo",
   ]);
   const [weather, setWeather] = useState<WeatherData | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Mock search function
-  const handleSearch = (city: string) => {
+  const handleSearch = async (city: string) => {
     if (!city.trim()) return;
 
-    const conditions: Array<{
-      cond: string;
-      icon: keyof typeof Ionicons.glyphMap;
-    }> = [
-      { cond: "Sunny", icon: "sunny-outline" },
-      { cond: "Partly Cloudy", icon: "partly-sunny-outline" },
-      { cond: "Cloudy", icon: "cloudy-outline" },
-      { cond: "Rainy", icon: "rainy-outline" },
-      { cond: "Thunderstorm", icon: "thunderstorm-outline" },
-      { cond: "Snowy", icon: "snow-outline" },
-    ];
+    setLoading(true);
+    setError(null);
+    Keyboard.dismiss();
 
-    const randomIdx = Math.floor(Math.random() * conditions.length);
-    const selected = conditions[randomIdx];
+    try {
+      // 1. Geocoding API to get coordinates
+      const geoRes = await fetch(
+        `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=en&format=json`,
+      );
+      const geoData = await geoRes.json();
 
-    // Simulate finding weather
-    const mockWeather: WeatherData = {
-      city: city,
-      temp:
-        Math.floor(Math.random() * 30) + (selected.cond === "Snowy" ? -5 : 5),
-      condition: selected.cond,
-      icon: selected.icon,
-      humidity: `${Math.floor(Math.random() * 60) + 30}%`,
-      wind: `${Math.floor(Math.random() * 20) + 5} km/h`,
-    };
+      if (!geoData.results || geoData.results.length === 0) {
+        throw new Error("City not found. Please try another name.");
+      }
 
-    setWeather(mockWeather);
+      const { latitude, longitude, name: cityName } = geoData.results[0];
 
-    // Add to recent searches if not already there
-    if (!recentSearches.includes(city)) {
-      setRecentSearches((prev) => [city, ...prev].slice(0, 5));
+      // 2. Weather Forecast API
+      const weatherRes = await fetch(
+        `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m&timezone=auto`,
+      );
+      const weatherData = await weatherRes.json();
+
+      const current = weatherData.current;
+      const { condition, icon } = mapWeatherCode(current.weather_code);
+
+      const newWeather: WeatherData = {
+        city: cityName,
+        temp: Math.round(current.temperature_2m),
+        condition: condition,
+        icon: icon,
+        humidity: `${current.relative_humidity_2m}%`,
+        wind: `${Math.round(current.wind_speed_10m)} km/h`,
+        feelsLike: Math.round(current.apparent_temperature),
+      };
+
+      setWeather(newWeather);
+
+      // Add to recent searches (case insensitive check)
+      if (
+        !recentSearches.some((s) => s.toLowerCase() === cityName.toLowerCase())
+      ) {
+        setRecentSearches((prev) => [cityName, ...prev].slice(0, 5));
+      }
+      setSearchQuery("");
+    } catch (err: any) {
+      setError(err.message || "Something went wrong. Please try again.");
+      setWeather(null);
+    } finally {
+      setLoading(false);
     }
-    setSearchQuery("");
   };
 
   return (
@@ -100,18 +140,25 @@ export default function Index() {
                 onChangeText={setSearchQuery}
                 onSubmitEditing={() => handleSearch(searchQuery)}
                 placeholderTextColor="#999"
+                editable={!loading}
               />
-              {searchQuery.length > 0 && (
+              {searchQuery.length > 0 && !loading && (
                 <TouchableOpacity onPress={() => setSearchQuery("")}>
                   <Ionicons name="close-circle" size={20} color="#ccc" />
                 </TouchableOpacity>
               )}
             </View>
             <TouchableOpacity
-              style={styles.searchButton}
+              style={[
+                styles.searchButton,
+                loading && styles.searchButtonDisabled,
+              ]}
               onPress={() => handleSearch(searchQuery)}
+              disabled={loading}
             >
-              <Text style={styles.searchButtonText}>Search</Text>
+              <Text style={styles.searchButtonText}>
+                {loading ? "..." : "Search"}
+              </Text>
             </TouchableOpacity>
           </View>
 
@@ -124,6 +171,7 @@ export default function Index() {
                   key={index}
                   style={styles.recentItem}
                   onPress={() => handleSearch(city)}
+                  disabled={loading}
                 >
                   <Ionicons name="time-outline" size={14} color="#007AFF" />
                   <Text style={styles.recentText}>{city}</Text>
@@ -132,13 +180,33 @@ export default function Index() {
             </View>
           </View>
 
+          {/* Status Feedback */}
+          {loading && (
+            <View style={styles.statusContainer}>
+              <ActivityIndicator size="large" color="#007AFF" />
+              <Text style={styles.statusText}>Fetching weather data...</Text>
+            </View>
+          )}
+
+          {error && !loading && (
+            <View style={styles.errorContainer}>
+              <Ionicons name="alert-circle-outline" size={48} color="#FF3B30" />
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          )}
+
           {/* Weather Display */}
-          {weather ? (
+          {weather && !loading && (
             <View style={styles.weatherCard}>
               <View style={styles.cardHeader}>
-                <View>
+                <View style={styles.cityInfo}>
                   <Text style={styles.cityName}>{weather.city}</Text>
-                  <Text style={styles.dateText}>Today, 28 Jan</Text>
+                  <Text style={styles.dateText}>
+                    {new Date().toLocaleDateString("en-GB", {
+                      day: "numeric",
+                      month: "short",
+                    })}
+                  </Text>
                 </View>
                 <Ionicons name={weather.icon} size={64} color="#007AFF" />
               </View>
@@ -164,11 +232,13 @@ export default function Index() {
                 <View style={styles.detailItem}>
                   <Ionicons name="thermometer-outline" size={24} color="#555" />
                   <Text style={styles.detailLabel}>Feels Like</Text>
-                  <Text style={styles.detailValue}>{weather.temp - 2}°</Text>
+                  <Text style={styles.detailValue}>{weather.feelsLike}°</Text>
                 </View>
               </View>
             </View>
-          ) : (
+          )}
+
+          {!weather && !loading && !error && (
             <View style={styles.emptyContainer}>
               <Ionicons name="cloud-outline" size={80} color="#E0E0E0" />
               <Text style={styles.emptyText}>
@@ -232,6 +302,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     borderRadius: 15,
   },
+  searchButtonDisabled: {
+    backgroundColor: "#A0CFFF",
+  },
   searchButtonText: {
     color: "#FFF",
     fontWeight: "600",
@@ -281,6 +354,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 20,
   },
+  cityInfo: {
+    flex: 1,
+    marginRight: 10,
+  },
   cityName: {
     fontSize: 28,
     fontWeight: "bold",
@@ -290,6 +367,27 @@ const styles = StyleSheet.create({
     color: "#666",
     fontSize: 14,
     marginTop: 4,
+  },
+  statusContainer: {
+    alignItems: "center",
+    marginTop: 40,
+  },
+  statusText: {
+    marginTop: 15,
+    color: "#666",
+    fontSize: 16,
+  },
+  errorContainer: {
+    alignItems: "center",
+    marginTop: 40,
+    paddingHorizontal: 20,
+  },
+  errorText: {
+    marginTop: 15,
+    color: "#FF3B30",
+    textAlign: "center",
+    fontSize: 16,
+    fontWeight: "500",
   },
   tempContainer: {
     alignItems: "center",
